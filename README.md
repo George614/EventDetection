@@ -1,2 +1,2 @@
 # EventDetection
-Use CNN and LSTM to do Gaze-In-world classification
+Use CNN to extract features from the eye images and feed those features into parallel LSTMs to do Gaze-In-world classification.
