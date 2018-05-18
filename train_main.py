@@ -12,8 +12,8 @@ torch.manual_seed(1) # reproducible
 from cnn1d_lstm import CNN1D_LSTM
 
 # Paths to the dataset
-#DATA_PATH = "F:\Event detection\George_ED_Mark1\\"
-DATA_PATH = "D:\Dataset\Event detection\George_ED_Mark1\\"
+DATA_PATH = "F:\Event detection\George_ED_Mark1\\"
+#DATA_PATH = "D:\Dataset\Event detection\George_ED_Mark1\\"
 
 DATA_0by0 = "Data_0_0.mat"
 DATA_3by3 = "Data_3_3.mat"
@@ -45,8 +45,8 @@ ID = mlarray2nparray(ID)
 Targets = mlarray2nparray(Targets)
 
 # Hyper-parameters 
-BATCH_SIZE = 16
-learning_rate = 0.01
+BATCH_SIZE = 24
+learning_rate = 0.005
 num_classes = len(np.unique(Targets[0]))-1
 hidden_size = 20
 kernel_size = 3
@@ -100,13 +100,13 @@ W = Variable(torch.Tensor(1-num_per_class/np.sum(num_per_class)),requires_grad=F
 # create the CNN_LSTM model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 net = CNN1D_LSTM(num_features,num_cnn_filters,kernel_size,hidden_size,num_classes).to(device)
-net = torch.nn.DataParallel(net,device_ids=range(torch.cuda.device_count()))
+#net = torch.nn.DataParallel(net,device_ids=range(torch.cuda.device_count()))
 #cudnn.benchmark = True
 
 # loss function 
 loss_func = nn.CrossEntropyLoss(weight=W).to(device)
 # optimizer
-optimizer = optim.Adam(net.parameters(),lr=learning_rate,weight_decay=1e-3)
+optimizer = optim.Adam(net.parameters(),lr=learning_rate,weight_decay=1e-2)
 
 # Data Loader for easy mini-batch return in training
 trainData = torch.from_numpy(trainData).float().to(device)
@@ -125,17 +125,21 @@ testLabels = torch.from_numpy(testLabels).long().to(device)
 # training loop
 for epoch in range(EPOCHS):
     for step, train_dict in enumerate(train_loader):
+        net.train()
+#        net.reset(BATCH_SIZE)
+        net.zero_grad()
         data_batch = torch.tensor(train_dict['data'],requires_grad=True).to(device)
         label_batch = torch.tensor(train_dict['label']).to(device)
         output = net(data_batch)
         loss = loss_func(output,label_batch)
-        optimizer.zero_grad()
+#        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
-    with torch.no_grad():
-        test_output = net(testData)
-        pred_y = torch.max(test_output, 1)[1].data.squeeze()
-        accuracy = torch.sum(pred_y == testLabels).float().item() / float(testLabels.size(0))
-        print('Epoch: ', epoch, '| train loss: %.4f' % loss.item(), '| test accuracy: %.2f' % accuracy)
+        if step%1000==0:
+            net.eval()
+            with torch.no_grad():
+                test_output = net(testData).to(device)
+                pred_y = torch.max(test_output, 1)[1].cuda().data.squeeze()
+                accuracy = torch.sum(pred_y == testLabels).float().item() / float(testLabels.size(0))
+                print('Epoch: ', epoch, 'step: ',step,'| train loss: %.4f' % loss.item(), '| test accuracy: %.5f' % accuracy)
         
